@@ -124,8 +124,9 @@ export const githubStore: NoteStore = {
     // auto-save -> docs(auto), manual save -> docs(manual)
     const scope = mode === "manual" ? "manual" : "auto";
     const body: any = {
-      // [skip ci] prevents Vercel from redeploying on every note save.
-      message: `docs(${scope}): ${mode}-save ${utcStamp()} [skip ci]`,
+      // The [vercel-skip] tag is matched by vercel.json's ignoreCommand to
+      // prevent a redeploy on every note save.
+      message: `docs(${scope}): ${mode}-save ${utcStamp()} [vercel-skip]`,
       content: b64encode(content),
       branch,
     };
@@ -153,7 +154,7 @@ export const githubStore: NoteStore = {
     let sha: string | undefined;
     if (getRes.ok) sha = (await getRes.json())?.sha;
     const body: any = {
-      message: `docs(manual): manual-delete ${utcStamp()} [skip ci]`,
+      message: `docs(manual): manual-delete ${utcStamp()} [vercel-skip]`,
       content: b64encode(""),
       branch,
     };
@@ -180,7 +181,7 @@ export const githubStore: NoteStore = {
       method: "PUT",
       headers: { ...headers(token), "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: `docs(auto): auto-save ${utcStamp()} [skip ci]`,
+        message: `docs(auto): auto-save ${utcStamp()} [vercel-skip]`,
         content: base64Content,
         branch,
       }),
