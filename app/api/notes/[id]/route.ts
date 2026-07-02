@@ -18,15 +18,16 @@ export async function GET(
   }
 }
 
-// PUT /api/notes/:id  body: { content, sha }
+// PUT /api/notes/:id  body: { content, sha, mode? }
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const { content, sha } = await req.json();
-    const result = await getStore().putNote(id, content ?? "", sha);
+    const { content, sha, mode } = await req.json();
+    const saveMode = mode === "manual" ? "manual" : "auto";
+    const result = await getStore().putNote(id, content ?? "", sha, saveMode);
     return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

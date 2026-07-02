@@ -37,6 +37,11 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
+  // Manual-save button feedback: spinner while saving, a brief flash on success.
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualDone, setManualDone] = useState(false);
+  const manualDoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<EditorHandle | null>(null);
   // Refs let callbacks (upload, debounced save) read the latest values
@@ -45,6 +50,8 @@ export default function Home() {
   activeIdRef.current = activeId;
   const shaRef = useRef<string | undefined>(undefined);
   shaRef.current = sha;
+  const contentRef = useRef<string>("");
+  contentRef.current = content;
 
   // Load the note list
   const loadList = useCallback(async () => {
@@ -93,27 +100,37 @@ export default function Home() {
     }
   }, [loadList]);
 
-  // Save (called after debounce)
-  const save = useCallback(async (id: string, text: string, curSha?: string) => {
-    setSaveState("saving");
-    try {
-      const res = await fetch(`/api/notes/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text, sha: curSha }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Save failed");
-      setSha(data.sha);
-      setSaveState("saved");
-      // Update the sha for this item in the list
-      setNotes((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, sha: data.sha } : n))
-      );
-    } catch {
-      setSaveState("error");
-    }
-  }, []);
+  // Save (called after debounce for auto-save, or immediately for manual save)
+  const save = useCallback(
+    async (
+      id: string,
+      text: string,
+      curSha?: string,
+      mode: "auto" | "manual" = "auto"
+    ) => {
+      setSaveState("saving");
+      try {
+        const res = await fetch(`/api/notes/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text, sha: curSha, mode }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Save failed");
+        setSha(data.sha);
+        setSaveState("saved");
+        // Update the sha for this item in the list
+        setNotes((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, sha: data.sha } : n))
+        );
+        return true;
+      } catch {
+        setSaveState("error");
+        return false;
+      }
+    },
+    []
+  );
 
   // Content change -> debounced auto-save
   const onEditorChange = useCallback(
@@ -129,6 +146,22 @@ export default function Home() {
     },
     [activeId, save]
   );
+
+  // Manual save: cancels any pending auto-save, saves immediately, and shows
+  // a spinner while in flight then a brief success flash.
+  const saveNow = useCallback(async () => {
+    if (!activeId || manualSaving) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (manualDoneTimer.current) clearTimeout(manualDoneTimer.current);
+    setManualDone(false);
+    setManualSaving(true);
+    const ok = await save(activeId, contentRef.current, shaRef.current, "manual");
+    setManualSaving(false);
+    if (ok) {
+      setManualDone(true);
+      manualDoneTimer.current = setTimeout(() => setManualDone(false), 1800);
+    }
+  }, [activeId, manualSaving, save]);
 
   // Upload an image and return an accessible URL (for the editor to insert)
   const uploadImage = useCallback(
@@ -338,6 +371,29 @@ export default function Home() {
                 />
               </label>
               <span className="hint">or paste / drop an image anywhere</span>
+              <button
+                className={
+                  "btn btn-save" +
+                  (manualSaving ? " is-saving" : "") +
+                  (manualDone ? " is-done" : "")
+                }
+                onClick={saveNow}
+                disabled={manualSaving}
+              >
+                {manualSaving ? (
+                  <>
+                    <span className="spinner" aria-hidden="true" />
+                    Saving…
+                  </>
+                ) : manualDone ? (
+                  <>
+                    <span className="check" aria-hidden="true" />
+                    Saved
+                  </>
+                ) : (
+                  "Save"
+                )}
+              </button>
               <button className="btn btn-danger" onClick={removeCurrent}>
                 Delete
               </button>

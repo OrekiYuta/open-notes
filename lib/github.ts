@@ -1,6 +1,6 @@
 // GitHub Contents API wrapper
 // Docs: https://docs.github.com/en/rest/repos/contents
-import type { Note, NoteMeta, NoteStore } from "./types";
+import type { Note, NoteMeta, NoteStore, SaveMode } from "./types";
 
 const API = "https://api.github.com";
 
@@ -47,6 +47,16 @@ function b64encode(str: string): string {
 }
 function b64decode(b64: string): string {
   return Buffer.from(b64, "base64").toString("utf-8");
+}
+
+// UTC timestamp for commit messages, format: YYYYMMDD-HH:mm:ss
+function utcStamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
+    `-${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`
+  );
 }
 
 // List directory contents; returns [] on 404
@@ -105,13 +115,16 @@ export const githubStore: NoteStore = {
   async putNote(
     id: string,
     content: string,
-    sha?: string
+    sha?: string,
+    mode: SaveMode = "auto"
   ): Promise<{ sha?: string }> {
     const { token, repo, branch, notesDir } = cfg();
     const p = `${notesDir}/${id}/${id}.md`;
     const url = `${API}/repos/${repo}/contents/${encodeURIComponent(p)}`;
+    // auto-save -> docs(auto), manual save -> docs(manual)
+    const scope = mode === "manual" ? "manual" : "auto";
     const body: any = {
-      message: `chore(note): update ${id}`,
+      message: `docs(${scope}): ${mode}-save ${utcStamp()}`,
       content: b64encode(content),
       branch,
     };
@@ -139,7 +152,7 @@ export const githubStore: NoteStore = {
     let sha: string | undefined;
     if (getRes.ok) sha = (await getRes.json())?.sha;
     const body: any = {
-      message: `chore(note): hide ${id}`,
+      message: `docs(manual): manual-delete ${utcStamp()}`,
       content: b64encode(""),
       branch,
     };
@@ -166,7 +179,7 @@ export const githubStore: NoteStore = {
       method: "PUT",
       headers: { ...headers(token), "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: `chore(asset): add ${safe}`,
+        message: `docs(auto): auto-save ${utcStamp()}`,
         content: base64Content,
         branch,
       }),

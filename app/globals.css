@@ -214,6 +214,84 @@ body {
   background: transparent;
 }
 
+/* Manual save button, with spinner + success states */
+.btn-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  min-width: 78px;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.06s ease,
+    box-shadow 0.25s ease;
+}
+.btn-save:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn-save:disabled {
+  opacity: 1; /* keep it vivid while the spinner shows */
+}
+/* Eye-catching success flash: pop + glow, turns green */
+.btn-save.is-done {
+  background: var(--green);
+  border-color: var(--green);
+  animation: save-pop 0.4s ease;
+  box-shadow: 0 0 0 4px rgba(106, 143, 95, 0.25), 0 4px 14px rgba(106, 143, 95, 0.35);
+}
+
+/* Spinner shown while saving */
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Animated checkmark on success */
+.check {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  position: relative;
+}
+.check::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transform-origin: center;
+  animation: check-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.4) 0.05s forwards;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes save-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes check-pop {
+  to {
+    transform: rotate(45deg) scale(1);
+  }
+}
+
 /* ==========================================================================
    Note list
    ========================================================================== */
