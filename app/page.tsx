@@ -37,6 +37,26 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
+  // Mobile: the sidebar becomes a slide-in drawer, toggled by a hamburger.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
+
+  // Lock body scroll while the mobile drawer is open, and close it on Escape.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [sidebarOpen]);
+
   // Manual-save button feedback: spinner while saving, a brief flash on success.
   const [manualSaving, setManualSaving] = useState(false);
   const [manualDone, setManualDone] = useState(false);
@@ -72,6 +92,7 @@ export default function Home() {
   const openNote = useCallback(async (id: string) => {
     setLoading(true);
     setActiveId(id);
+    setSidebarOpen(false); // close the mobile drawer once a note is chosen
     try {
       const res = await fetch(`/api/notes/${id}`);
       const data = await res.json();
@@ -97,6 +118,7 @@ export default function Home() {
       setContent("");
       setSha(data.sha);
       setSaveState("saved");
+      setSidebarOpen(false); // close the mobile drawer after creating
     }
   }, [loadList]);
 
@@ -276,7 +298,13 @@ export default function Home() {
   };
 
   return (
-    <div className="layout">
+    <div className={"layout" + (sidebarOpen ? " sidebar-open" : "")}>
+      {/* Mobile-only scrim behind the drawer */}
+      <div
+        className="sidebar-scrim"
+        onClick={closeSidebar}
+        aria-hidden={!sidebarOpen}
+      />
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="sidebar-title">Open Notes</span>
@@ -287,6 +315,13 @@ export default function Home() {
               </button>
               <button className="btn btn-primary" onClick={createNote}>
                 New Note
+              </button>
+              <button
+                className="btn btn-icon sidebar-close"
+                onClick={closeSidebar}
+                aria-label="Close menu"
+              >
+                ✕
               </button>
             </div>
           ) : (
@@ -360,6 +395,13 @@ export default function Home() {
         {activeId && !selectMode ? (
           <>
             <div className="toolbar">
+              <button
+                className="btn btn-icon menu-toggle"
+                onClick={toggleSidebar}
+                aria-label="Open menu"
+              >
+                ☰
+              </button>
               <label className="btn">
                 {uploading ? "Uploading…" : "Insert Image"}
                 <input
@@ -414,11 +456,23 @@ export default function Home() {
             )}
           </>
         ) : (
-          <div className="empty">
-            {selectMode
-              ? "Select mode: check notes on the left, then click “Delete selected”."
-              : "Select a note on the left, or click “New Note” to start."}
-          </div>
+          <>
+            <div className="toolbar toolbar-empty">
+              <button
+                className="btn btn-icon menu-toggle"
+                onClick={toggleSidebar}
+                aria-label="Open menu"
+              >
+                ☰
+              </button>
+              <span className="toolbar-brand">Open Notes</span>
+            </div>
+            <div className="empty">
+              {selectMode
+                ? "Select mode: check notes on the left, then click “Delete selected”."
+                : "Select a note on the left, or click “New Note” to start."}
+            </div>
+          </>
         )}
       </main>
     </div>
