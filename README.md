@@ -41,8 +41,9 @@ Your notes are always readable, portable, and version-controlled — just files 
 
 When using the GitHub backend, notes are committed to a **separate data branch**
 (default `notes-data`), *not* the branch you deploy code from (`main`/`master`).
-The app creates that branch automatically on the first save, branching off your
-code branch.
+The app creates that branch automatically on the first save as an **empty orphan
+branch**, so it contains **only the `notes/` directory** — none of the app's
+source code.
 
 Why this matters: if your repo is a **fork** that syncs code from an upstream
 using a force-push workflow (e.g. `github-forks-sync-action` with `force: true`),
@@ -56,7 +57,8 @@ never touched, so **syncing upstream code can't wipe your notes**.
 
 ### Run locally
 
-No configuration required — notes are saved to the local `data/` folder.
+No configuration required — notes are saved to the local `data/` folder. The
+folder isn't tracked in git; it's created automatically on your first save.
 
 ```bash
 npm install

@@ -1,3 +1,0 @@
-# Keeps the data/ directory present in the repo so the local backend has a
-# writable place for notes (data/notes/<id>/...). Actual note files are
-# gitignored and never committed.

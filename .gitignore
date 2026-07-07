@@ -38,7 +38,6 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Local note data (local backend only; not committed). The data/ folder
-# itself is kept via data/.gitkeep so the app has a writable directory.
-data/*
-!data/.gitkeep
+# Local note data (local backend only; not committed). The app auto-creates
+# this directory on first save, so it doesn't need to exist in git.
+data/

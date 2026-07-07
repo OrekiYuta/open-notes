@@ -19,7 +19,9 @@ function cfg() {
   // Data branch: the branch notes are committed to. Kept SEPARATE from the
   // code/deploy branch on purpose so that a fork-sync workflow which
   // force-pushes the code branch (e.g. main/master) can never overwrite a
-  // user's notes. Resolution order:
+  // user's notes. It is created as an empty orphan branch (see
+  // ensureDataBranch), so it only ever contains the `notes/` directory — no
+  // application code. Resolution order:
   //   1. GITHUB_DATA_BRANCH (explicit override)
   //   2. GITHUB_BRANCH (legacy/back-compat override)
   //   3. "notes-data" (dedicated data branch — do NOT include this in any
@@ -28,9 +30,6 @@ function cfg() {
     process.env.GITHUB_DATA_BRANCH ||
     process.env.GITHUB_BRANCH ||
     "notes-data";
-  // The branch new data branches are forked from when they don't yet exist.
-  const baseBranch =
-    process.env.GITHUB_BRANCH || process.env.VERCEL_GIT_COMMIT_REF || "main";
   const notesDir = process.env.NOTES_DIR || "notes";
   const attachDir = process.env.ATTACH_DIR || "attachment";
   if (!token) {
@@ -43,7 +42,7 @@ function cfg() {
       "Cannot resolve target repository: set GITHUB_REPO, or deploy on Vercel from a GitHub repo (VERCEL_GIT_REPO_OWNER/SLUG)"
     );
   }
-  return { token, repo, branch, baseBranch, notesDir, attachDir };
+  return { token, repo, branch, notesDir, attachDir };
 }
 
 function headers(token: string) {
@@ -71,15 +70,17 @@ function utcStamp(): string {
   );
 }
 
-// Ensure the dedicated data branch exists. If it doesn't, create it by
-// branching off the base (code/deploy) branch. This lets notes live on a
-// branch that a fork-sync workflow never force-pushes, so syncing upstream
-// code can't wipe a user's notes. Runs at most one extra API call once the
-// branch exists (a cheap ref lookup that 404s -> create).
+// Ensure the dedicated data branch exists. If it doesn't, create it as an
+// EMPTY ORPHAN branch (an initial commit with an empty tree, no code from the
+// deploy branch). Notes are then the only thing that ever lands on it, so the
+// branch holds just the `notes/` directory and nothing else. Because a
+// fork-sync workflow never force-pushes this branch, syncing upstream code
+// can't wipe a user's notes. Runs at most one extra API call once the branch
+// exists (a cheap ref lookup that 404s -> create).
 let _dataBranchEnsured = false;
 async function ensureDataBranch(): Promise<void> {
   if (_dataBranchEnsured) return;
-  const { token, repo, branch, baseBranch } = cfg();
+  const { token, repo, branch } = cfg();
   // Does the data branch already exist?
   const refUrl = `${API}/repos/${repo}/git/ref/${encodeURIComponent(
     `heads/${branch}`
@@ -97,26 +98,42 @@ async function ensureDataBranch(): Promise<void> {
       `Failed to check data branch: ${refRes.status} ${await refRes.text()}`
     );
   }
-  // Data branch missing: look up the base branch's tip commit sha.
-  const baseUrl = `${API}/repos/${repo}/git/ref/${encodeURIComponent(
-    `heads/${baseBranch}`
-  )}`;
-  const baseRes = await fetch(baseUrl, {
-    headers: headers(token),
-    cache: "no-store",
+  // Data branch missing: build an empty orphan branch so it only ever holds
+  // note files. 1) create an empty tree, 2) create a parentless root commit
+  // pointing at it, 3) create the ref.
+  const jsonHeaders = { ...headers(token), "Content-Type": "application/json" };
+  const treeRes = await fetch(`${API}/repos/${repo}/git/trees`, {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify({ tree: [] }),
   });
-  if (!baseRes.ok)
+  if (!treeRes.ok)
     throw new Error(
-      `Failed to resolve base branch "${baseBranch}" to create data branch "${branch}": ${baseRes.status} ${await baseRes.text()}`
+      `Failed to create empty tree for data branch "${branch}": ${treeRes.status} ${await treeRes.text()}`
     );
-  const baseSha = (await baseRes.json())?.object?.sha;
-  if (!baseSha)
-    throw new Error(`Could not read tip sha of base branch "${baseBranch}"`);
-  // Create the data branch pointing at the base branch tip.
+  const treeSha = (await treeRes.json())?.sha;
+  if (!treeSha) throw new Error("Could not read empty tree sha");
+
+  const commitRes = await fetch(`${API}/repos/${repo}/git/commits`, {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      message: `chore: initialize notes data branch ${utcStamp()} [vercel-skip]`,
+      tree: treeSha,
+      parents: [],
+    }),
+  });
+  if (!commitRes.ok)
+    throw new Error(
+      `Failed to create root commit for data branch "${branch}": ${commitRes.status} ${await commitRes.text()}`
+    );
+  const commitSha = (await commitRes.json())?.sha;
+  if (!commitSha) throw new Error("Could not read root commit sha");
+
   const createRes = await fetch(`${API}/repos/${repo}/git/refs`, {
     method: "POST",
-    headers: { ...headers(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }),
+    headers: jsonHeaders,
+    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
   });
   // 201 created, or 422 if it raced and now exists — both are fine.
   if (!createRes.ok && createRes.status !== 422)
