@@ -37,6 +37,21 @@ notes/
 
 Your notes are always readable, portable, and version-controlled — just files in a repo. No lock-in.
 
+### Notes live on a dedicated branch
+
+When using the GitHub backend, notes are committed to a **separate data branch**
+(default `notes-data`), *not* the branch you deploy code from (`main`/`master`).
+The app creates that branch automatically on the first save, branching off your
+code branch.
+
+Why this matters: if your repo is a **fork** that syncs code from an upstream
+using a force-push workflow (e.g. `github-forks-sync-action` with `force: true`),
+that sync only overwrites the **code branch**. Your notes on `notes-data` are
+never touched, so **syncing upstream code can't wipe your notes**.
+
+- Keep the data branch **out of any fork-sync matrix** (only sync `main`/`master`).
+- Override the branch name with `GITHUB_DATA_BRANCH` if you like.
+
 ## Get started
 
 ### Run locally
@@ -58,7 +73,8 @@ You only need **one** thing: a GitHub token so the app can write notes into your
 1. Deploy the app (any host that runs Next.js works).
 2. Create a GitHub fine-grained token with **Contents: Read and write** on the repo you want to store notes in.
 3. Set it as the `GITHUB_TOKEN` environment variable.
-4. Open the URL and start writing. The first save creates the `notes/` folder automatically.
+4. Open the URL and start writing. The first save creates the `notes-data`
+   branch (and the `notes/` folder on it) automatically.
 
 ## License
 
