@@ -113,7 +113,7 @@ async function ensureDataBranch(): Promise<void> {
     JSON.stringify(
       {
         $schema: "https://openapi.vercel.sh/vercel.json",
-        ignoreCommand: "git log -1 --pretty=%B | grep -q '\\[vercel-skip\\]'",
+        ignoreCommand: "git log -1 --pretty=%s | grep -q '\\[vercel-skip\\]'",
       },
       null,
       2
