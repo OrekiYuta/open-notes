@@ -98,13 +98,26 @@ async function ensureDataBranch(): Promise<void> {
       `Failed to check data branch: ${refRes.status} ${await refRes.text()}`
     );
   }
-  // Data branch missing: build an orphan branch that only ever holds note
-  // files. GitHub's Trees API rejects a truly empty tree ({tree: []} -> 422
-  // "Invalid tree info"), so we seed the tree with a single placeholder file
-  // (`<notesDir>/.gitkeep`). This creates the notes directory and keeps the
-  // branch free of any application code. Steps: 1) create the tree with the
-  // placeholder, 2) create a parentless root commit, 3) create the ref.
+  // Data branch missing: build an orphan branch that holds note files plus a
+  // minimal vercel.json. GitHub's Trees API rejects a truly empty tree
+  // ({tree: []} -> 422 "Invalid tree info"), so we seed the tree with:
+  //   - `<notesDir>/.gitkeep`  : creates the notes directory
+  //   - `vercel.json`          : so Vercel reads the same ignoreCommand here as
+  //                              on the code branch, and note commits tagged
+  //                              [vercel-skip] don't trigger a redeploy of this
+  //                              data branch.
+  // The branch still carries no application code. Steps: 1) create the tree,
+  // 2) create a parentless root commit, 3) create the ref.
   const jsonHeaders = { ...headers(token), "Content-Type": "application/json" };
+  const vercelJson =
+    JSON.stringify(
+      {
+        $schema: "https://openapi.vercel.sh/vercel.json",
+        ignoreCommand: "git log -1 --pretty=%B | grep -q '\\[vercel-skip\\]'",
+      },
+      null,
+      2
+    ) + "\n";
   const treeRes = await fetch(`${API}/repos/${repo}/git/trees`, {
     method: "POST",
     headers: jsonHeaders,
@@ -115,6 +128,12 @@ async function ensureDataBranch(): Promise<void> {
           mode: "100644",
           type: "blob",
           content: "",
+        },
+        {
+          path: "vercel.json",
+          mode: "100644",
+          type: "blob",
+          content: vercelJson,
         },
       ],
     }),
